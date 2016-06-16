@@ -1,5 +1,5 @@
 import pandas
-import collections.namedtuple
+from collections import namedtuple
 
 from botapi import Botagraph, BotApiError
 from reliure.types import Text
@@ -10,7 +10,11 @@ PDG_KEY = ""
 GRAPHNAME = "Panama Papers"
 
 
-nodetypes = ["addresses",]
+nodetypes = ["Addresses","Entities", "Intermediaries", "Officers"]
+labels_mapping = {"Addresses": "countries",
+                  "Entities": "name",
+                  "Intermediaries": "name",
+                  "Officiers": "name"}
 
 NodeType = namedtuple("NodeType", "name description properties")
 EdgeType = namedtuple("EdgeType", "name description properties")
@@ -29,8 +33,9 @@ class NodesImporter:
 
 
     def iterNodes(self, nodetypeUuid):
-        for _, row in df.iterrows():
+        for _, row in self.df.iterrows():
             properties = row.to_dict() 
+            properties['label'] = properties[labels_mapping[self.basename]]
             yield { 'nodetype': nodetypeUuid,
                     'properties': properties}
 
@@ -64,13 +69,13 @@ nodes_uuids = {}
 for nodetype in nodetypes:
     nImporter = NodesImporter(nodetype)
     nt = nImporter.buildNodeType()
-    type_uuid = bot.post_nodetype(GRAPHNAME,nt.name, nt.description, nt.properties)['uuid']
+    type_uuid = bot.post_nodetype(GRAPHNAME,nt.name, nt.description, nt.properties)
     for node, uuid in bot.post_nodes(GRAPHNAME,nImporter.iterNodes(type_uuid)):
         nodes_uuids[node['properties']['node_id']] = uuid
 
 eImporter = AllEdgesImporter()
 types_uuid = {}
 for et in eImporter.buildEdgeTypes():
-    types_uuid[et.name] = bot.post_edgetype(GRAPHNAME, et.name, et.description, et.properties)['uuid']
+    types_uuid[et.name] = bot.post_edgetype(GRAPHNAME, et.name, et.description, et.properties)
 
 list(bot.post_edges(GRAPHNAME, eImporter.iterEdges(nodes_uuids, types_uuid)))
